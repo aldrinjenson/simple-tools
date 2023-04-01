@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Mirrored from backend-pico.onrender.com/distinctio-male by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 01 Apr 2023 09:56:22 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera App</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet"> <!-- This is a popular CSS library -->
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .container {
+            text-align: center;
+        }
+        button {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <video id="video" width="640" height="480" autoplay></video>
+        <br>
+        <button id="start" class="btn btn-success">Start Recording</button>
+        <button id="pause" class="btn btn-warning" disabled>Pause Recording</button>
+        <button id="resume" class="btn btn-info" disabled>Resume Recording</button>
+        <button id="stop" class="btn btn-danger" disabled>Stop Recording</button>
+        <button id="switch" class="btn btn-secondary">Switch Camera</button>
+        <br>
+        <a id="download" class="btn btn-primary" disabled>Download</a>
+        <br>
+        <video id="preview" width="640" height="480" controls></video>
+        
+        <script>
+            const video = document.getElementById("video");
+            const start = document.getElementById("start");
+            const pause = document.getElementById("pause");
+            const resume = document.getElementById("resume");
+            const stop = document.getElementById("stop");
+            const switchCam = document.getElementById("switch");
+            const preview = document.getElementById("preview");
+            const download = document.getElementById("download");
+            let mediaRecorder;
+            let chunks = [];
+            let currentStream;
+            let currentDeviceId;
+            let useFrontCamera = true;
+
+            async function getCamera(constraints) {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => {
+                        track.stop();
+                    });
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    currentStream = stream;
+                } catch(err) {
+                    console.error(err);
+                }
+            }
+            
+            async function getDevices() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    return videoDevices;
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            getCamera({ video: true, audio: true });
+
+            start.addEventListener("click", () => {
+                start.disabled = true;
+                pause.disabled = false;
+                stop.disabled = false;
+                switchCam.disabled = true;
+                chunks = [];
+
+                mediaRecorder = new MediaRecorder(currentStream);
+                mediaRecorder.start();
+
+                mediaRecorder.ondataavailable = e => {
+                    chunks.push(e.data);
+                };
+            });
+
+            pause.addEventListener("click", () => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.pause();
+                    pause.disabled = true;
+                    resume.disabled = false;
+                }
+            });
+
+            resume.addEventListener("click", () => {
+                if (mediaRecorder.state === 'paused') {
+                    mediaRecorder.resume();
+                    pause.disabled = false;
+                    resume.disabled = true;
+                }
+            });
+
+            stop.addEventListener("click", () => {
+                stopRecording();
+            });
+
+            switchCam.addEventListener("click", async () => {
+                useFrontCamera = !useFrontCamera;
+                let devices = await getDevices();
+                
+                if (devices.length > 1) {
+                    currentDeviceId = useFrontCamera ? devices[0].deviceId : devices[1].deviceId;
+                    getCamera({
+                        video: {
+                            deviceId: { exact: currentDeviceId }
+                        },
+                        audio: true
+                    });
+                }
+            });
+
+            function stopRecording() {
+                stop.disabled = true;
+                start.disabled = false;
+                switchCam.disabled = false;
+                mediaRecorder.stop();
+
+                mediaRecorder.onstop = e => {
+                    const blob = new Blob(chunks, { type: "video/mp4" });
+                    const url = URL.createObjectURL(blob);
+                    preview.src = url;
+                    download.href = url;
+                    download.setAttribute("download", "recorded-video.mp4");
+                    download.disabled = false;
+                };
+            }
+
+            download.addEventListener("click", () => {
+                setTimeout(() => {
+                    download.href = "";
+                    download.removeAttribute("download");
+                }, 100);
+            });
+
+        </script>
+    </div>
+</body>
+
+<!-- Mirrored from backend-pico.onrender.com/distinctio-male by HTTrack Website Copier/3.x [XR&CO'2014], Sat, 01 Apr 2023 09:56:22 GMT -->
+</html>
